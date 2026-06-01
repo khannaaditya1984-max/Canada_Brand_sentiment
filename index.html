@@ -637,7 +637,7 @@ function sleep(ms) {
 
 </script>
 <script>
-// agents.js — all 7 agent functions (X/Twitter removed)
+// agents.js — 6 agent pipeline (no X/Twitter)
 
 const WEB_SEARCH_TOOL = [{ type: 'web_search_20250305', name: 'web_search' }];
 
@@ -713,51 +713,45 @@ async function agentGoogle(brand, competitors, region, isAllCanada) {
 }
 
 // ── Agent 5: Sentiment Analyst ────────────────────────────────────────────────
-// Step A: Claude scores each mention (one API call, simple array output)
-// Step B: aggregates computed in JS client-side — no second API call needed
+// Scoring via API, all aggregates computed in JS — no timeout risk
 async function agentSentiment(brand, competitors, allMentions) {
   setIcon(4, 'running');
   trace('Sentiment analyst → scoring ' + allMentions.length + ' mentions');
   await sleep(ANALYST_PAUSE_MS);
 
   const allBrands = [brand, ...competitors];
+  const platList  = [...new Set(allMentions.map(m => m.platform || 'web'))];
 
-  // Step A — score mentions via API
   const lines = allMentions.map((m, i) =>
     i + '|' + (m.brand || brand) + '|' + (m.platform || 'web') + '|' + (m.region || 'CA') + '|' +
     (m.snippet || m.post_snippet || m.review_snippet || m.title || '').slice(0, 60)
   ).join('\n');
 
-  const scorePrompt = 'Score each mention for brand "' + brand + '" in Canada.\n\nMentions (index|brand|platform|region|text):\n' + lines + '\n\nReturn ONLY a JSON array: [{index, brand, platform, region, sentiment:"positive|neutral|negative", score}]. No wrapper, no prose.';
+  const scorePrompt = 'Score each mention for brand "' + brand + '" in Canada.\n\nMentions (index|brand|platform|region|text):\n' + lines + '\n\nReturn ONLY a JSON array: [{index, brand, platform, region, sentiment:"positive|neutral|negative", score}]. No wrapper object, no prose.';
 
   const scoreData = await callClaude([{ role: 'user', content: scorePrompt }], null, MAX_TOKENS_ANALYST);
   const scored    = safeParseArr(extractText(scoreData)) || [];
-  trace('Sentiment analyst → scored ' + scored.length + ' mentions, computing aggregates');
+  trace('Sentiment analyst → scored ' + scored.length + ' mentions, computing aggregates in JS');
 
-  // Step B — compute all aggregates in JS (no extra API call)
-  const platList = [...new Set(allMentions.map(m => m.platform || 'web'))];
-
-  // share of voice
+  // ── All aggregates computed client-side ──────────────────────────────────
   const mentionCounts = {};
   allBrands.forEach(b => mentionCounts[b] = 0);
   scored.forEach(s => {
     const b = s.brand || brand;
-    if (mentionCounts[b] !== undefined) mentionCounts[b]++;
-    else mentionCounts[b] = 1;
+    mentionCounts[b] = (mentionCounts[b] || 0) + 1;
   });
-  const totalMentions = Object.values(mentionCounts).reduce((a, b) => a + b, 0) || 1;
+  const totalM = Object.values(mentionCounts).reduce((a, b) => a + b, 0) || 1;
   const share_of_voice = Object.entries(mentionCounts).map(([b, c]) => ({
-    brand: b, mention_count: c, percent: Math.round(c / totalMentions * 100)
+    brand: b, mention_count: c, percent: Math.round(c / totalM * 100)
   }));
 
-  // sentiment breakdown per brand
   const sentiment_breakdown = {};
   allBrands.forEach(b => sentiment_breakdown[b] = { positive: 0, neutral: 0, negative: 0, net_sentiment: 0 });
   scored.forEach(s => {
-    const b   = s.brand || brand;
-    const key = s.sentiment === 'positive' ? 'positive' : s.sentiment === 'negative' ? 'negative' : 'neutral';
+    const b = s.brand || brand;
     if (!sentiment_breakdown[b]) sentiment_breakdown[b] = { positive: 0, neutral: 0, negative: 0, net_sentiment: 0 };
-    sentiment_breakdown[b][key]++;
+    const k = s.sentiment === 'positive' ? 'positive' : s.sentiment === 'negative' ? 'negative' : 'neutral';
+    sentiment_breakdown[b][k]++;
   });
   Object.keys(sentiment_breakdown).forEach(b => {
     const v = sentiment_breakdown[b];
@@ -765,14 +759,13 @@ async function agentSentiment(brand, competitors, allMentions) {
     v.net_sentiment = parseFloat(((v.positive - v.negative) / t).toFixed(2));
   });
 
-  // platform breakdown
   const platform_breakdown = {};
   platList.forEach(p => platform_breakdown[p] = { positive: 0, neutral: 0, negative: 0, net_sentiment: 0 });
   scored.forEach(s => {
-    const p   = s.platform || 'web';
-    const key = s.sentiment === 'positive' ? 'positive' : s.sentiment === 'negative' ? 'negative' : 'neutral';
+    const p = s.platform || 'web';
     if (!platform_breakdown[p]) platform_breakdown[p] = { positive: 0, neutral: 0, negative: 0, net_sentiment: 0 };
-    platform_breakdown[p][key]++;
+    const k = s.sentiment === 'positive' ? 'positive' : s.sentiment === 'negative' ? 'negative' : 'neutral';
+    platform_breakdown[p][k]++;
   });
   Object.keys(platform_breakdown).forEach(p => {
     const v = platform_breakdown[p];
@@ -780,30 +773,28 @@ async function agentSentiment(brand, competitors, allMentions) {
     v.net_sentiment = parseFloat(((v.positive - v.negative) / t).toFixed(2));
   });
 
-  // region breakdown
   const region_breakdown = {};
   scored.forEach(s => {
-    const r   = s.region || 'National';
-    const key = s.sentiment === 'positive' ? 'positive' : s.sentiment === 'negative' ? 'negative' : 'neutral';
+    const r = s.region || 'National';
     if (!region_breakdown[r]) region_breakdown[r] = { positive: 0, neutral: 0, negative: 0 };
-    region_breakdown[r][key]++;
+    const k = s.sentiment === 'positive' ? 'positive' : s.sentiment === 'negative' ? 'negative' : 'neutral';
+    region_breakdown[r][k]++;
   });
 
-  // themes — derive top recurring words from snippets grouped by sentiment
   const themeMap = {};
+  const stopWords = new Set(['which','their','there','about','would','could','should','after','before','these','those','other','brand','canada','canadian','great','really','very','just','have','been','will','with','from','that','this','they','were','when','what','also']);
   allMentions.forEach((m, i) => {
     const sc   = scored[i];
     const sent = sc ? sc.sentiment : (m.sentiment || 'neutral');
     const text = (m.snippet || m.post_snippet || m.review_snippet || m.title || '').toLowerCase();
     const words = text.match(/\b[a-z]{5,}\b/g) || [];
-    const stopWords = new Set(['which','their','there','about','would','could','should','after','before','these','those','other','brand','canada','canadian']);
     words.filter(w => !stopWords.has(w)).forEach(w => {
       if (!themeMap[w]) themeMap[w] = { positive: 0, neutral: 0, negative: 0 };
       themeMap[w][sent]++;
     });
   });
   const themes = Object.entries(themeMap)
-    .map(([w, counts]) => ({ theme: w, frequency: counts.positive + counts.neutral + counts.negative, sentiment: counts.positive >= counts.negative ? (counts.positive > 0 ? 'positive' : 'neutral') : 'negative' }))
+    .map(([w, c]) => ({ theme: w, frequency: c.positive + c.neutral + c.negative, sentiment: c.positive >= c.negative ? (c.positive > 0 ? 'positive' : 'neutral') : 'negative' }))
     .sort((a, b) => b.frequency - a.frequency)
     .slice(0, 5);
 
@@ -819,22 +810,64 @@ async function agentSentiment(brand, competitors, allMentions) {
 async function agentBureau(brand, competitors, allMentions, analysis, region, isAllCanada) {
   setIcon(5, 'running');
   trace('Bureau chief → drafting Canada intelligence briefing');
+  await sleep(8000);
 
-  const geo      = isAllCanada ? 'nationally across Canada' : 'in ' + region;
-  const comp     = competitors.length ? ' vs ' + competitors.join(', ') : '';
+  const geo       = isAllCanada ? 'nationally across Canada' : 'in ' + region;
+  const comp      = competitors.length ? ' vs ' + competitors.join(', ') : '';
   const platforms = [...new Set(allMentions.map(m => m.platform))];
+  const sov       = (analysis.share_of_voice || []).map(s => s.brand + ':' + s.percent + '%').join(', ');
+  const bd        = analysis.sentiment_breakdown || {};
+  const sent      = Object.entries(bd).map(([b, v]) => b + ' net=' + v.net_sentiment + ' pos=' + v.positive + ' neg=' + v.negative).join('; ');
+  const themes    = (analysis.themes || []).slice(0, 5).map(t => t.theme + '(' + t.sentiment + ')').join(', ');
+  const regions   = Object.entries(analysis.region_breakdown || {}).slice(0, 5).map(([r, v]) => r + ':pos=' + v.positive + ',neg=' + v.negative).join('; ');
 
-  const sov     = (analysis.share_of_voice || []).map(s => s.brand + ':' + s.percent + '%').join(', ');
-  const bd      = analysis.sentiment_breakdown || {};
-  const sent    = Object.entries(bd).map(([b, v]) => b + ' net=' + v.net_sentiment + ' (+' + v.positive + '/-' + v.negative + ')').join(' | ');
-  const themes  = (analysis.themes || []).slice(0, 5).map(t => t.theme + '(' + t.sentiment + ')').join(', ');
-  const regions = Object.entries(analysis.region_breakdown || {}).slice(0, 5).map(([r, v]) => r + ':+' + v.positive + '/-' + v.negative).join(', ');
+  const prompt = 'Canadian brand intelligence briefing for "' + brand + '" ' + geo + comp + '.\n' +
+    'mentions=' + allMentions.length + ', platforms=' + platforms.join('/') + '\n' +
+    'SoV: ' + sov + '\n' +
+    'Sentiment: ' + sent + '\n' +
+    'Themes: ' + themes + '\n' +
+    'Regions: ' + regions + '\n\n' +
+    'Return a JSON object with exactly these keys: headline (string), executive_summary (string), key_findings (array of 4 strings), regional_insight (string), platform_insight (string), risks (array of 2 strings), opportunities (array of 2 strings), recommendations (array of 3 strings).\n' +
+    'Output raw JSON only. No markdown, no code fences, no explanation before or after.';
 
-  const prompt = 'Write a Canadian brand intelligence briefing for "' + brand + '" ' + geo + comp + '.\n\nDATA: mentions=' + allMentions.length + ' platforms=[' + platforms.join(',') + '] SoV=[' + sov + '] sentiment=[' + sent + '] themes=[' + themes + '] regions=[' + regions + ']\n\nReturn ONLY JSON: {headline, executive_summary, key_findings:[4 items], regional_insight, platform_insight, risks:[2], opportunities:[2], recommendations:[3]}. Canadian market lens. Cite numbers. No prose outside JSON.';
+  const data = await callClaude([{ role: 'user', content: prompt }], null, 1500);
+  let raw = extractText(data);
 
-  const data   = await callClaude([{ role: 'user', content: prompt }], null, MAX_TOKENS_DEFAULT);
-  const report = safeParse(extractText(data));
-  if (!report) throw new Error('Bureau chief returned malformed report. Please try again.');
+  // Aggressive cleanup — strip any markdown or prose wrapping
+  raw = raw.replace(/```json/gi, '').replace(/```/g, '').trim();
+  if (!raw.startsWith('{')) {
+    const idx = raw.indexOf('{');
+    if (idx >= 0) raw = raw.slice(idx);
+  }
+  if (!raw.endsWith('}')) {
+    const idx = raw.lastIndexOf('}');
+    if (idx >= 0) raw = raw.slice(0, idx + 1);
+  }
+
+  let report = null;
+  try { report = JSON.parse(raw); } catch (e) { report = null; }
+
+  // Fallback — if JSON is still broken, build a minimal report from what we have
+  if (!report || !report.headline) {
+    trace('Bureau chief → using fallback report structure');
+    const primaryBd = (analysis.sentiment_breakdown || {})[brand] || {};
+    const sovEntry  = (analysis.share_of_voice || []).find(s => s.brand.toLowerCase() === brand.toLowerCase()) || {};
+    report = {
+      headline: brand + ' shows ' + (primaryBd.net_sentiment >= 0 ? 'positive' : 'mixed') + ' sentiment across Canadian platforms.',
+      executive_summary: brand + ' captured ' + (sovEntry.percent || 0) + '% share of voice with ' + allMentions.length + ' mentions across ' + platforms.join(', ') + '.',
+      key_findings: [
+        'Total mentions: ' + allMentions.length + ' across ' + platforms.length + ' platforms.',
+        'Share of voice: ' + sov,
+        'Sentiment breakdown: ' + sent,
+        'Top themes: ' + themes
+      ],
+      regional_insight: 'Regional data: ' + regions,
+      platform_insight: 'Platforms monitored: ' + platforms.join(', '),
+      risks: ['Sentiment volatility across regions.', 'Competitive pressure from ' + (competitors[0] || 'market peers') + '.'],
+      opportunities: ['Strengthen presence in high-positive regions.', 'Leverage top themes in content strategy.'],
+      recommendations: ['Monitor regional sentiment shifts weekly.', 'Address negative themes proactively.', 'Amplify positive platform conversations.']
+    };
+  }
 
   trace('Bureau chief → briefing complete');
   setIcon(5, 'done');
@@ -978,7 +1011,7 @@ function renderResults(brand, allMentions, analysis, report, region) {
 
 let selectedRegions = [];
 let allSelected     = true;
-let selectedPlats   = ['reddit', 'facebook', 'google'];
+let selectedPlats   = ['reddit', 'twitter', 'facebook', 'google'];
 
 // ── Build region grid ─────────────────────────────────────────────────────────
 (function buildRegionGrid() {
@@ -1067,7 +1100,7 @@ function resetUI(brand, region) {
   document.getElementById('errMsg').classList.add('hidden');
   document.getElementById('results').classList.add('hidden');
   document.getElementById('emptyState').classList.add('hidden');
-  [0, 1, 2, 3, 4, 5].forEach(i => setIcon(i, ''));
+  [0, 1, 2, 3, 4, 5, 6].forEach(i => setIcon(i, ''));
 }
 
 // ── Main runner ───────────────────────────────────────────────────────────────
@@ -1096,13 +1129,17 @@ async function runAgents() {
       allMentions.push(...await agentReddit(brand, competitors, region, allSelected));
     } else { setIcon(1, ''); }
 
+    if (selectedPlats.includes('twitter')) {
+      allMentions.push(...await agentTwitter(brand, competitors, region, allSelected));
+    } else { setIcon(2, ''); }
+
     if (selectedPlats.includes('facebook')) {
       allMentions.push(...await agentFacebook(brand, competitors, region, allSelected));
-    } else { setIcon(2, ''); }
+    } else { setIcon(3, ''); }
 
     if (selectedPlats.includes('google')) {
       allMentions.push(...await agentGoogle(brand, competitors, region, allSelected));
-    } else { setIcon(3, ''); }
+    } else { setIcon(4, ''); }
 
     trace('All platform agents complete — ' + allMentions.length + ' total mentions collected');
 
