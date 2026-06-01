@@ -1,20 +1,27 @@
 // netlify/functions/proxy.js
-// Proxies requests to the Anthropic API server-side, avoiding CORS.
-// The API key is passed from the client in the x-api-key header.
+// Server-side proxy to Anthropic API — avoids CORS restrictions in the browser.
 
-exports.handler = async function (event) {
+exports.handler = async function (event, context) {
+
+  // Handle CORS preflight
   if (event.httpMethod === 'OPTIONS') {
     return {
       statusCode: 204,
       headers: corsHeaders(),
+      body: '',
     };
   }
 
   if (event.httpMethod !== 'POST') {
-    return { statusCode: 405, body: 'Method Not Allowed' };
+    return {
+      statusCode: 405,
+      headers: corsHeaders(),
+      body: JSON.stringify({ error: { message: 'Method not allowed' } }),
+    };
   }
 
-  const apiKey = event.headers['x-api-key'] || event.headers['X-Api-Key'];
+  // Pull the API key the client passed through
+  const apiKey = (event.headers['x-api-key'] || '').trim();
   if (!apiKey) {
     return {
       statusCode: 400,
@@ -23,8 +30,10 @@ exports.handler = async function (event) {
     };
   }
 
+  // Forward to Anthropic
+  let response;
   try {
-    const response = await fetch('https://api.anthropic.com/v1/messages', {
+    response = await fetch('https://api.anthropic.com/v1/messages', {
       method: 'POST',
       headers: {
         'Content-Type':      'application/json',
@@ -33,20 +42,24 @@ exports.handler = async function (event) {
       },
       body: event.body,
     });
-
-    const data = await response.text();
-    return {
-      statusCode: response.status,
-      headers: { ...corsHeaders(), 'Content-Type': 'application/json' },
-      body: data,
-    };
   } catch (err) {
     return {
       statusCode: 502,
       headers: corsHeaders(),
-      body: JSON.stringify({ error: { message: 'Proxy error: ' + err.message } }),
+      body: JSON.stringify({ error: { message: 'Upstream fetch failed: ' + err.message } }),
     };
   }
+
+  const responseText = await response.text();
+
+  return {
+    statusCode: response.status,
+    headers: {
+      ...corsHeaders(),
+      'Content-Type': 'application/json',
+    },
+    body: responseText,
+  };
 };
 
 function corsHeaders() {

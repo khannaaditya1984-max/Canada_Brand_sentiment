@@ -589,18 +589,17 @@ function getApiKey() {
   return document.getElementById('apiKey').value.trim();
 }
 
-// Use the Netlify proxy when deployed; direct call only works inside claude.ai
 function getEndpoint() {
-  const host = window.location.hostname;
-  const isClaudeAI = host.includes('claude.ai');
-  const isLocalFile = window.location.protocol === 'file:';
-  if (isClaudeAI || isLocalFile) {
-    // claude.ai allows direct calls with the dangerous header
-    // file:// we still try direct (will fail on CORS but gives a clear error)
+  const proto = window.location.protocol;
+  const host  = window.location.hostname;
+
+  // Direct call only works inside claude.ai (CORS allowlisted by Anthropic)
+  if (host === 'claude.ai' || host.endsWith('.claude.ai')) {
     return { url: 'https://api.anthropic.com/v1/messages', direct: true };
   }
-  // Netlify, GitHub Pages, any other host — use the proxy
-  return { url: '/api/proxy', direct: false };
+
+  // Every other host (Netlify, GitHub Pages, localhost, file://) — use the proxy function
+  return { url: '/.netlify/functions/proxy', direct: false };
 }
 
 async function callClaude(messages, tools, maxTokens) {
@@ -617,8 +616,8 @@ async function callClaude(messages, tools, maxTokens) {
   const { url, direct } = getEndpoint();
 
   const headers = {
-    'Content-Type': 'application/json',
-    'x-api-key': key,
+    'Content-Type':      'application/json',
+    'x-api-key':         key,
     'anthropic-version': '2023-06-01',
   };
   if (direct) {
@@ -628,21 +627,21 @@ async function callClaude(messages, tools, maxTokens) {
   let res;
   try {
     res = await fetch(url, {
-      method: 'POST',
-      headers,
-      body: JSON.stringify(body),
+      method:  'POST',
+      headers: headers,
+      body:    JSON.stringify(body),
     });
   } catch (networkErr) {
     throw new Error(
       'Network error — could not reach the API. ' +
-      'If running locally, open via a local server (e.g. npx serve .) rather than double-clicking the file. ' +
-      'Original error: ' + networkErr.message
+      'Make sure the site is deployed via Netlify (not drag-and-drop; needs a connected GitHub repo). ' +
+      'Error: ' + networkErr.message
     );
   }
 
   if (!res.ok) {
-    const err = await res.json().catch(() => ({}));
-    throw new Error((err.error && err.error.message) || 'API error ' + res.status);
+    const errBody = await res.json().catch(() => ({}));
+    throw new Error((errBody.error && errBody.error.message) || 'API error ' + res.status);
   }
   return res.json();
 }
@@ -661,9 +660,7 @@ function safeParse(txt) {
     const e = clean.lastIndexOf('}');
     if (s < 0 || e < 0) return null;
     return JSON.parse(clean.slice(s, e + 1));
-  } catch {
-    return null;
-  }
+  } catch { return null; }
 }
 
 function safeParseArr(txt) {
@@ -673,9 +670,7 @@ function safeParseArr(txt) {
     const e = clean.lastIndexOf(']');
     if (s < 0 || e < 0) return null;
     return JSON.parse(clean.slice(s, e + 1));
-  } catch {
-    return null;
-  }
+  } catch { return null; }
 }
 
 function sleep(ms) {
