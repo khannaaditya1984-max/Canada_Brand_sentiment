@@ -1,6 +1,7 @@
-// api.js — Anthropic API wrapper and parsing helpers
-// All calls go direct to Anthropic with the dangerous-direct-browser-calls header.
-// This is supported from any origin as long as the header is present.
+// api.js — routes all calls through the Cloudflare Worker proxy
+// Replace YOUR-SUBDOMAIN below with your actual Cloudflare Worker subdomain
+
+const PROXY_URL = 'shy-dawn-e509sentiment-proxy.khanna-aditya1984.workers.dev';
 
 function getApiKey() {
   return document.getElementById('apiKey').value.trim();
@@ -19,18 +20,16 @@ async function callClaude(messages, tools, maxTokens) {
 
   let res;
   try {
-    res = await fetch('https://api.anthropic.com/v1/messages', {
+    res = await fetch(PROXY_URL, {
       method: 'POST',
       headers: {
-        'Content-Type':                            'application/json',
-        'x-api-key':                               key,
-        'anthropic-version':                       '2023-06-01',
-        'anthropic-dangerous-direct-browser-calls': 'true',
+        'Content-Type': 'application/json',
+        'x-api-key':    key,
       },
       body: JSON.stringify(body),
     });
   } catch (networkErr) {
-    throw new Error('Network error: ' + networkErr.message);
+    throw new Error('Network error — check your Cloudflare Worker is deployed: ' + networkErr.message);
   }
 
   if (!res.ok) {
