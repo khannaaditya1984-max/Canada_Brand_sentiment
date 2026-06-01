@@ -1,20 +1,9 @@
 // api.js — Anthropic API wrapper and parsing helpers
+// All calls go direct to Anthropic with the dangerous-direct-browser-calls header.
+// This is supported from any origin as long as the header is present.
 
 function getApiKey() {
   return document.getElementById('apiKey').value.trim();
-}
-
-function getEndpoint() {
-  const proto = window.location.protocol;
-  const host  = window.location.hostname;
-
-  // Direct call only works inside claude.ai (CORS allowlisted by Anthropic)
-  if (host === 'claude.ai' || host.endsWith('.claude.ai')) {
-    return { url: 'https://api.anthropic.com/v1/messages', direct: true };
-  }
-
-  // Every other host (Netlify, GitHub Pages, localhost, file://) — use the proxy function
-  return { url: '/.netlify/functions/proxy', direct: false };
 }
 
 async function callClaude(messages, tools, maxTokens) {
@@ -22,36 +11,26 @@ async function callClaude(messages, tools, maxTokens) {
   if (!key) throw new Error('No API key provided. Enter your Anthropic API key in the sidebar.');
 
   const body = {
-    model: MODEL,
+    model:      MODEL,
     max_tokens: maxTokens || MAX_TOKENS_DEFAULT,
     messages,
   };
   if (tools) body.tools = tools;
 
-  const { url, direct } = getEndpoint();
-
-  const headers = {
-    'Content-Type':      'application/json',
-    'x-api-key':         key,
-    'anthropic-version': '2023-06-01',
-  };
-  if (direct) {
-    headers['anthropic-dangerous-direct-browser-calls'] = 'true';
-  }
-
   let res;
   try {
-    res = await fetch(url, {
-      method:  'POST',
-      headers: headers,
-      body:    JSON.stringify(body),
+    res = await fetch('https://api.anthropic.com/v1/messages', {
+      method: 'POST',
+      headers: {
+        'Content-Type':                            'application/json',
+        'x-api-key':                               key,
+        'anthropic-version':                       '2023-06-01',
+        'anthropic-dangerous-direct-browser-calls': 'true',
+      },
+      body: JSON.stringify(body),
     });
   } catch (networkErr) {
-    throw new Error(
-      'Network error — could not reach the API. ' +
-      'Make sure the site is deployed via Netlify (not drag-and-drop; needs a connected GitHub repo). ' +
-      'Error: ' + networkErr.message
-    );
+    throw new Error('Network error: ' + networkErr.message);
   }
 
   if (!res.ok) {
