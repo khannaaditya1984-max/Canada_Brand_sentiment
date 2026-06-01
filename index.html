@@ -1,0 +1,176 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Canada Brand Sentiment Agent</title>
+  <link rel="stylesheet" href="styles/main.css" />
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
+</head>
+<body>
+<div class="app">
+
+  <!-- SIDEBAR -->
+  <aside class="sidebar">
+    <div class="logo">Sentiment Agent</div>
+    <div class="logo-sub">Canada · Brand Intelligence</div>
+
+    <div class="key-section" id="keySection">
+      <label>Anthropic API Key</label>
+      <input type="password" id="apiKey" placeholder="sk-ant-..." />
+    </div>
+
+    <div class="sidebar-section">
+      <div class="sidebar-label">Brand</div>
+      <input type="text" id="brandInput" placeholder="e.g. instax" style="margin-bottom:8px" />
+      <div class="sidebar-label" style="margin-top:8px">Competitors</div>
+      <input type="text" id="compInput" placeholder="e.g. Polaroid, Canon" />
+    </div>
+
+    <div class="sidebar-section">
+      <div class="sidebar-label">Region</div>
+      <button class="all-btn sel" id="allBtn" onclick="toggleAll()">🍁 All Canada</button>
+      <div class="region-grid" id="regionGrid"></div>
+    </div>
+
+    <div class="sidebar-section">
+      <div class="sidebar-label">Platform agents</div>
+      <div class="platform-grid">
+        <button class="plat-btn sel" data-p="reddit"   onclick="togglePlat(this)">Reddit</button>
+        <button class="plat-btn sel" data-p="twitter"  onclick="togglePlat(this)">X / Twitter</button>
+        <button class="plat-btn sel" data-p="facebook" onclick="togglePlat(this)">Facebook</button>
+        <button class="plat-btn sel" data-p="google"   onclick="togglePlat(this)">Google Reviews</button>
+      </div>
+    </div>
+
+    <button class="run-btn" id="runBtn" onclick="runAgents()">Run analysis</button>
+  </aside>
+
+  <!-- MAIN -->
+  <main class="main">
+    <div class="page-title">Canada Brand Sentiment</div>
+    <div class="page-sub" id="pageSubtitle">Enter a brand and configure your analysis on the left.</div>
+
+    <!-- agent pipeline -->
+    <div class="pipeline" id="pipeline">
+      <div class="agent-step">
+        <div class="agent-icon" id="icon0">📡</div>
+        <div><div class="agent-label">Mention Scout</div><div class="agent-sublabel">Web + news</div></div>
+      </div>
+      <div class="agent-step">
+        <div class="agent-icon" id="icon1">🟠</div>
+        <div><div class="agent-label">Reddit Agent</div><div class="agent-sublabel">Subreddits</div></div>
+      </div>
+      <div class="agent-step">
+        <div class="agent-icon" id="icon2">🐦</div>
+        <div><div class="agent-label">X / Twitter</div><div class="agent-sublabel">Tweets + hashtags</div></div>
+      </div>
+      <div class="agent-step">
+        <div class="agent-icon" id="icon3">🔵</div>
+        <div><div class="agent-label">Facebook</div><div class="agent-sublabel">Groups + pages</div></div>
+      </div>
+      <div class="agent-step">
+        <div class="agent-icon" id="icon4">⭐</div>
+        <div><div class="agent-label">Google Reviews</div><div class="agent-sublabel">Ratings + verbatims</div></div>
+      </div>
+      <div class="agent-step">
+        <div class="agent-icon" id="icon5">📊</div>
+        <div><div class="agent-label">Sentiment Analyst</div><div class="agent-sublabel">Score + SoV</div></div>
+      </div>
+      <div class="agent-step" style="border-right:none">
+        <div class="agent-icon" id="icon6">📰</div>
+        <div><div class="agent-label">Bureau Chief</div><div class="agent-sublabel">Briefing</div></div>
+      </div>
+    </div>
+
+    <!-- trace log -->
+    <div class="trace-box hidden" id="traceBox"></div>
+    <div class="err-msg hidden" id="errMsg"></div>
+
+    <!-- empty state -->
+    <div class="empty" id="emptyState">
+      <div class="empty-icon">🍁</div>
+      <h2>Ready to analyze</h2>
+      <p>Configure your brand, region, and platform agents on the left, then run the analysis.</p>
+    </div>
+
+    <!-- results -->
+    <div id="results" class="hidden">
+      <div class="briefing-region" id="resultRegion"></div>
+      <div class="briefing-headline" id="resultHeadline"></div>
+
+      <div class="metrics" id="metricsRow"></div>
+
+      <div class="card" id="execSummaryCard">
+        <div class="card-title">Executive summary</div>
+        <p id="execSummary" style="font-size:13px;color:var(--text2);line-height:1.6"></p>
+      </div>
+
+      <div class="grid-2">
+        <div class="card">
+          <div class="card-title">Share of voice</div>
+          <div id="sovSection"></div>
+        </div>
+        <div class="card">
+          <div class="card-title">Sentiment by region</div>
+          <div id="regionSection"></div>
+        </div>
+      </div>
+
+      <div class="grid-3">
+        <div class="card">
+          <div class="card-title">By platform</div>
+          <div id="platformSection"></div>
+        </div>
+        <div class="card" style="grid-column:span 2">
+          <div class="card-title">Key themes</div>
+          <div id="themesSection"></div>
+        </div>
+      </div>
+
+      <div style="margin-bottom:14px">
+        <div class="card-title" style="padding:0 0 8px">Sentiment by platform</div>
+        <div class="card" style="padding:16px">
+          <div style="position:relative;height:200px">
+            <canvas id="sentChart" role="img" aria-label="Stacked bar chart of positive, neutral, and negative sentiment by platform"></canvas>
+          </div>
+        </div>
+      </div>
+
+      <div class="grid-2">
+        <div class="card">
+          <div class="card-title">Key findings</div>
+          <ul class="finding-list" id="findingsList"></ul>
+        </div>
+        <div class="card">
+          <div class="card-title">Regional + platform insight</div>
+          <p id="regionalInsight" style="font-size:12px;color:var(--text2);line-height:1.6"></p>
+        </div>
+      </div>
+
+      <div class="grid-2">
+        <div class="card">
+          <div class="card-title">Risks</div>
+          <ul class="finding-list" id="riskList"></ul>
+        </div>
+        <div class="card">
+          <div class="card-title">Opportunities</div>
+          <ul class="finding-list" id="oppList"></ul>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-title">Recommendations</div>
+        <ul class="rec-list" id="recList"></ul>
+      </div>
+    </div>
+  </main>
+</div>
+
+<script src="js/config.js"></script>
+<script src="js/api.js"></script>
+<script src="js/agents.js"></script>
+<script src="js/render.js"></script>
+<script src="js/app.js"></script>
+</body>
+</html>
