@@ -4,8 +4,419 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Canada Brand Sentiment Agent</title>
-  <link rel="stylesheet" href="styles/main.css" />
   <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
+  <style>
+*, *::before, *::after {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+:root {
+  --bg:       #ffffff;
+  --bg2:      #f5f5f3;
+  --bg3:      #eeede9;
+  --text:     #1a1a18;
+  --text2:    #5a5a56;
+  --text3:    #9a9a94;
+  --border:   rgba(0,0,0,0.10);
+  --border2:  rgba(0,0,0,0.18);
+
+  --blue:       #185FA5;
+  --blue-bg:    #E6F1FB;
+  --blue-text:  #0C447C;
+
+  --green:      #1D9E75;
+  --green-bg:   #EAF3DE;
+  --green-text: #3B6D11;
+
+  --red:        #E24B4A;
+  --red-bg:     #FCEBEB;
+  --red-text:   #A32D2D;
+
+  --amber:      #BA7517;
+  --amber-bg:   #FAEEDA;
+  --amber-text: #854F0B;
+
+  --radius:    8px;
+  --radius-lg: 12px;
+  --font:      -apple-system, 'Helvetica Neue', Arial, sans-serif;
+  --mono:      'SF Mono', 'Fira Code', 'Consolas', monospace;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg:       #1c1c1a;
+    --bg2:      #242422;
+    --bg3:      #2c2c2a;
+    --text:     #e8e8e2;
+    --text2:    #a0a09a;
+    --text3:    #606058;
+    --border:   rgba(255,255,255,0.10);
+    --border2:  rgba(255,255,255,0.18);
+    --blue-bg:    #0c2a4a;
+    --blue-text:  #85b7eb;
+    --green-bg:   #0a2a1a;
+    --green-text: #5dcaa5;
+    --red-bg:     #2a0c0c;
+    --red-text:   #f09595;
+    --amber-bg:   #2a1a04;
+    --amber-text: #ef9f27;
+  }
+}
+
+body {
+  font-family: var(--font);
+  background: var(--bg3);
+  color: var(--text);
+  min-height: 100vh;
+}
+
+/* ── Layout ── */
+.app {
+  display: grid;
+  grid-template-columns: 280px 1fr;
+  min-height: 100vh;
+}
+
+.sidebar {
+  background: var(--bg);
+  border-right: 0.5px solid var(--border);
+  padding: 28px 20px;
+  position: sticky;
+  top: 0;
+  height: 100vh;
+  overflow-y: auto;
+}
+
+.main {
+  padding: 28px 32px;
+  overflow-y: auto;
+}
+
+/* ── Sidebar ── */
+.logo      { font-size: 15px; font-weight: 600; color: var(--text); margin-bottom: 4px; }
+.logo-sub  { font-size: 11px; color: var(--text3); text-transform: uppercase; letter-spacing: .5px; margin-bottom: 28px; }
+
+.sidebar-section { margin-bottom: 22px; }
+
+.sidebar-label {
+  font-size: 10px;
+  font-weight: 600;
+  color: var(--text3);
+  text-transform: uppercase;
+  letter-spacing: .6px;
+  margin-bottom: 8px;
+}
+
+/* ── Inputs ── */
+input[type=text],
+input[type=password] {
+  width: 100%;
+  padding: 8px 10px;
+  border: 0.5px solid var(--border2);
+  border-radius: var(--radius);
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--font);
+  font-size: 13px;
+  outline: none;
+}
+input[type=text]:focus,
+input[type=password]:focus {
+  border-color: var(--blue);
+  box-shadow: 0 0 0 2px rgba(24,95,165,0.15);
+}
+
+/* ── API Key box ── */
+.key-section {
+  background: var(--amber-bg);
+  border: 0.5px solid var(--amber);
+  border-radius: var(--radius);
+  padding: 10px 12px;
+  margin-bottom: 16px;
+}
+.key-section label {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--amber-text);
+  display: block;
+  margin-bottom: 5px;
+}
+.key-section input {
+  border-color: var(--amber);
+  font-family: var(--mono);
+  font-size: 11px;
+}
+
+/* ── Region grid ── */
+.region-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 5px;
+}
+
+.rbtn {
+  border: 0.5px solid var(--border);
+  background: var(--bg2);
+  border-radius: var(--radius);
+  padding: 6px 7px;
+  cursor: pointer;
+  font-size: 11px;
+  color: var(--text2);
+  text-align: left;
+  transition: all .12s;
+  line-height: 1.3;
+  font-family: var(--font);
+}
+.rbtn:hover  { border-color: var(--border2); color: var(--text); }
+.rbtn.sel    { border-color: var(--blue); background: var(--blue-bg); color: var(--blue-text); }
+.rbtn .abbr  { font-size: 9px; opacity: .6; display: block; }
+
+.all-btn {
+  width: 100%;
+  margin-bottom: 6px;
+  border: 0.5px solid var(--border2);
+  background: var(--bg2);
+  border-radius: var(--radius);
+  padding: 7px 10px;
+  cursor: pointer;
+  font-size: 12px;
+  color: var(--text2);
+  font-family: var(--font);
+  transition: all .12s;
+  text-align: left;
+}
+.all-btn.sel { border-color: var(--blue); background: var(--blue-bg); color: var(--blue-text); font-weight: 500; }
+
+/* ── Platform toggles ── */
+.platform-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 5px;
+}
+
+.plat-btn {
+  border: 0.5px solid var(--border);
+  background: var(--bg2);
+  border-radius: var(--radius);
+  padding: 7px 8px;
+  cursor: pointer;
+  font-size: 11px;
+  color: var(--text2);
+  text-align: center;
+  transition: all .12s;
+  font-family: var(--font);
+}
+.plat-btn:hover { border-color: var(--border2); }
+.plat-btn[data-p="reddit"].sel   { border-color: #FF4500; background: #fff0eb; color: #cc3700; }
+.plat-btn[data-p="twitter"].sel  { border-color: #333;    background: #f0f0f0; color: #111; }
+.plat-btn[data-p="facebook"].sel { border-color: #1877F2; background: #e8f0fe; color: #1877F2; }
+.plat-btn[data-p="google"].sel   { border-color: #34A853; background: #e8f5e9; color: #1e7e34; }
+
+@media (prefers-color-scheme: dark) {
+  .plat-btn[data-p="twitter"].sel { background: #1a1a1a; color: #e8e8e2; }
+}
+
+/* ── Run button ── */
+.run-btn {
+  width: 100%;
+  padding: 11px;
+  background: var(--blue);
+  border: none;
+  border-radius: var(--radius);
+  font-size: 13px;
+  font-weight: 600;
+  color: #fff;
+  cursor: pointer;
+  transition: all .15s;
+  font-family: var(--font);
+  margin-top: 4px;
+}
+.run-btn:hover    { background: #0c4480; }
+.run-btn:disabled { opacity: .45; cursor: not-allowed; }
+
+/* ── Page header ── */
+.page-title { font-size: 22px; font-weight: 600; color: var(--text); margin-bottom: 4px; }
+.page-sub   { font-size: 13px; color: var(--text2); margin-bottom: 24px; }
+
+/* ── Agent pipeline ── */
+.pipeline {
+  display: flex;
+  border: 0.5px solid var(--border);
+  border-radius: var(--radius-lg);
+  overflow: hidden;
+  margin-bottom: 20px;
+  background: var(--bg);
+}
+
+.agent-step {
+  flex: 1;
+  padding: 12px 10px;
+  border-right: 0.5px solid var(--border);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.agent-step:last-child { border-right: none; }
+
+.agent-icon {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 14px;
+  flex-shrink: 0;
+  background: var(--bg2);
+  border: 0.5px solid var(--border);
+  transition: all .3s;
+}
+.agent-icon.running { background: var(--blue-bg);  border-color: var(--blue);  animation: pulse 1.4s ease-in-out infinite; }
+.agent-icon.done    { background: var(--green-bg); border-color: var(--green); }
+.agent-icon.error   { background: var(--red-bg);   border-color: var(--red); }
+
+@keyframes pulse {
+  0%, 100% { opacity: 1; }
+  50%       { opacity: .45; }
+}
+
+.agent-label    { font-size: 11px; font-weight: 500; color: var(--text); }
+.agent-sublabel { font-size: 10px; color: var(--text3); margin-top: 1px; }
+
+/* ── Trace log ── */
+.trace-box {
+  background: var(--bg);
+  border: 0.5px solid var(--border);
+  border-radius: var(--radius);
+  padding: 12px 14px;
+  font-size: 11px;
+  font-family: var(--mono);
+  color: var(--text2);
+  min-height: 52px;
+  max-height: 130px;
+  overflow-y: auto;
+  margin-bottom: 20px;
+  line-height: 1.9;
+}
+
+.tline { display: flex; gap: 8px; }
+.tdot  { width: 5px; height: 5px; border-radius: 50%; background: var(--blue); flex-shrink: 0; margin-top: 7px; }
+.tdot.err { background: var(--red); }
+
+/* ── Error ── */
+.err-msg {
+  background: var(--red-bg);
+  border: 0.5px solid var(--red);
+  border-radius: var(--radius);
+  padding: 10px 14px;
+  font-size: 12px;
+  color: var(--red-text);
+  margin-bottom: 16px;
+}
+
+/* ── Empty state ── */
+.empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  min-height: 360px;
+  text-align: center;
+}
+.empty-icon { font-size: 36px; margin-bottom: 14px; opacity: .3; }
+.empty h2   { font-size: 16px; font-weight: 500; color: var(--text2); margin-bottom: 6px; }
+.empty p    { font-size: 13px; color: var(--text3); max-width: 320px; line-height: 1.6; }
+
+/* ── Metrics ── */
+.metrics {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 10px;
+  margin-bottom: 16px;
+}
+
+.metric {
+  background: var(--bg);
+  border: 0.5px solid var(--border);
+  border-radius: var(--radius);
+  padding: 14px;
+}
+.metric-label { font-size: 10px; color: var(--text3); text-transform: uppercase; letter-spacing: .5px; font-weight: 600; margin-bottom: 6px; }
+.metric-value { font-size: 24px; font-weight: 600; color: var(--text); line-height: 1; }
+.metric-sub   { font-size: 11px; color: var(--text3); margin-top: 4px; }
+
+/* ── Cards ── */
+.card {
+  background: var(--bg);
+  border: 0.5px solid var(--border);
+  border-radius: var(--radius-lg);
+  padding: 16px 18px;
+  margin-bottom: 0;
+}
+.card-title {
+  font-size: 10px;
+  font-weight: 600;
+  color: var(--text3);
+  text-transform: uppercase;
+  letter-spacing: .5px;
+  margin-bottom: 12px;
+}
+
+.grid-2 { display: grid; grid-template-columns: 1fr 1fr;     gap: 14px; margin-bottom: 14px; }
+.grid-3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 14px; margin-bottom: 14px; }
+
+/* ── Briefing header ── */
+.briefing-region   { font-size: 10px; text-transform: uppercase; letter-spacing: .5px; color: var(--text3); margin-bottom: 8px; }
+.briefing-headline { font-size: 17px; font-weight: 500; color: var(--text); line-height: 1.4; margin-bottom: 16px; padding-bottom: 14px; border-bottom: 0.5px solid var(--border); }
+
+/* ── SoV bars ── */
+.sov-row { margin-bottom: 9px; }
+.sov-top { display: flex; justify-content: space-between; font-size: 12px; margin-bottom: 3px; }
+.sov-bar-wrap { height: 6px; background: var(--bg3); border-radius: 3px; overflow: hidden; }
+.sov-bar-fill { height: 100%; border-radius: 3px; }
+
+/* ── Sentiment bars ── */
+.sent-row     { display: flex; align-items: center; gap: 8px; margin-bottom: 7px; font-size: 12px; }
+.sent-name    { min-width: 110px; color: var(--text2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.sent-bar-wrap { flex: 1; height: 5px; background: var(--bg3); border-radius: 3px; overflow: hidden; }
+.sent-bar-fill { height: 100%; border-radius: 3px; background: var(--green); }
+.sent-pct     { min-width: 32px; text-align: right; font-size: 11px; color: var(--text3); }
+
+/* ── Platform bars ── */
+.plat-row  { display: flex; align-items: center; gap: 10px; margin-bottom: 8px; font-size: 12px; }
+.plat-name { min-width: 90px; color: var(--text2); }
+.plat-bar-wrap { flex: 1; height: 5px; background: var(--bg3); border-radius: 3px; overflow: hidden; }
+.plat-bar-fill { height: 100%; border-radius: 3px; }
+.plat-pct  { min-width: 34px; text-align: right; font-size: 11px; color: var(--text3); }
+
+/* ── Theme tags ── */
+.tag { display: inline-block; padding: 3px 9px; border-radius: 4px; font-size: 11px; font-weight: 500; margin: 2px 3px 2px 0; }
+.tag.pos { background: var(--green-bg); color: var(--green-text); }
+.tag.neg { background: var(--red-bg);   color: var(--red-text); }
+.tag.neu { background: var(--bg3);      color: var(--text2); }
+
+/* ── Lists ── */
+.finding-list, .rec-list { list-style: none; }
+
+.finding-list li {
+  font-size: 12px;
+  color: var(--text2);
+  padding: 5px 0;
+  border-bottom: 0.5px solid var(--border);
+  line-height: 1.5;
+}
+.finding-list li:last-child { border-bottom: none; }
+.finding-list li::before    { content: "→"; color: var(--blue); margin-right: 7px; font-size: 11px; }
+
+.rec-list li { font-size: 12px; color: var(--text2); padding: 5px 0; line-height: 1.5; }
+.rec-list li::before { content: "↗"; color: var(--green-text); margin-right: 7px; font-size: 11px; }
+
+/* ── Utility ── */
+.hidden { display: none !important; }
+
+  </style>
 </head>
 <body>
 <div class="app">
@@ -15,7 +426,7 @@
     <div class="logo">Sentiment Agent</div>
     <div class="logo-sub">Canada · Brand Intelligence</div>
 
-    <div class="key-section" id="keySection">
+    <div class="key-section">
       <label>Anthropic API Key</label>
       <input type="password" id="apiKey" placeholder="sk-ant-..." />
     </div>
@@ -52,7 +463,7 @@
     <div class="page-sub" id="pageSubtitle">Enter a brand and configure your analysis on the left.</div>
 
     <!-- agent pipeline -->
-    <div class="pipeline" id="pipeline">
+    <div class="pipeline">
       <div class="agent-step">
         <div class="agent-icon" id="icon0">📡</div>
         <div><div class="agent-label">Mention Scout</div><div class="agent-sublabel">Web + news</div></div>
@@ -83,25 +494,22 @@
       </div>
     </div>
 
-    <!-- trace log -->
     <div class="trace-box hidden" id="traceBox"></div>
     <div class="err-msg hidden" id="errMsg"></div>
 
-    <!-- empty state -->
     <div class="empty" id="emptyState">
       <div class="empty-icon">🍁</div>
       <h2>Ready to analyze</h2>
       <p>Configure your brand, region, and platform agents on the left, then run the analysis.</p>
     </div>
 
-    <!-- results -->
     <div id="results" class="hidden">
       <div class="briefing-region" id="resultRegion"></div>
       <div class="briefing-headline" id="resultHeadline"></div>
 
       <div class="metrics" id="metricsRow"></div>
 
-      <div class="card" id="execSummaryCard">
+      <div class="card" style="margin-bottom:14px">
         <div class="card-title">Executive summary</div>
         <p id="execSummary" style="font-size:13px;color:var(--text2);line-height:1.6"></p>
       </div>
@@ -132,7 +540,7 @@
         <div class="card-title" style="padding:0 0 8px">Sentiment by platform</div>
         <div class="card" style="padding:16px">
           <div style="position:relative;height:200px">
-            <canvas id="sentChart" role="img" aria-label="Stacked bar chart of positive, neutral, and negative sentiment by platform"></canvas>
+            <canvas id="sentChart" role="img" aria-label="Stacked bar chart of sentiment by platform"></canvas>
           </div>
         </div>
       </div>
@@ -159,7 +567,7 @@
         </div>
       </div>
 
-      <div class="card">
+      <div class="card" style="margin-bottom:28px">
         <div class="card-title">Recommendations</div>
         <ul class="rec-list" id="recList"></ul>
       </div>
@@ -167,10 +575,605 @@
   </main>
 </div>
 
-<script src="js/config.js"></script>
-<script src="js/api.js"></script>
-<script src="js/agents.js"></script>
-<script src="js/render.js"></script>
-<script src="js/app.js"></script>
+<script>
+// config.js — regions, platform colours, and app-wide constants
+
+const REGIONS = [
+  { abbr: 'ON', name: 'Ontario' },
+  { abbr: 'QC', name: 'Quebec' },
+  { abbr: 'BC', name: 'British Columbia' },
+  { abbr: 'AB', name: 'Alberta' },
+  { abbr: 'MB', name: 'Manitoba' },
+  { abbr: 'SK', name: 'Saskatchewan' },
+  { abbr: 'NS', name: 'Nova Scotia' },
+  { abbr: 'NB', name: 'New Brunswick' },
+  { abbr: 'NL', name: 'Newfoundland' },
+  { abbr: 'PE', name: 'PEI' },
+  { abbr: 'YT', name: 'Yukon' },
+  { abbr: 'NT', name: 'NW Territories' },
+  { abbr: 'NU', name: 'Nunavut' },
+];
+
+const PLATFORM_COLOURS = {
+  reddit:   '#FF4500',
+  twitter:  '#111111',
+  facebook: '#1877F2',
+  google:   '#34A853',
+  news:     '#185FA5',
+};
+
+const MODEL = 'claude-sonnet-4-20250514';
+const MAX_TOKENS_DEFAULT = 1200;
+const MAX_TOKENS_SCOUT   = 1500;
+const MAX_TOKENS_ANALYST = 1400;
+const AGENT_PAUSE_MS     = 1500;
+const ANALYST_PAUSE_MS   = 2000;
+
+</script>
+<script>
+// api.js — Anthropic API wrapper and parsing helpers
+
+function getApiKey() {
+  return document.getElementById('apiKey').value.trim();
+}
+
+async function callClaude(messages, tools, maxTokens) {
+  const key = getApiKey();
+  if (!key) throw new Error('No API key provided. Enter your Anthropic API key in the sidebar.');
+
+  const body = {
+    model: MODEL,
+    max_tokens: maxTokens || MAX_TOKENS_DEFAULT,
+    messages,
+  };
+  if (tools) body.tools = tools;
+
+  const res = await fetch('https://api.anthropic.com/v1/messages', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'x-api-key': key,
+      'anthropic-version': '2023-06-01',
+      'anthropic-dangerous-direct-browser-calls': 'true',
+    },
+    body: JSON.stringify(body),
+  });
+
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error((err.error && err.error.message) || 'API error ' + res.status);
+  }
+  return res.json();
+}
+
+function extractText(data) {
+  return (data.content || [])
+    .filter(b => b.type === 'text')
+    .map(b => b.text)
+    .join('');
+}
+
+function safeParse(txt) {
+  try {
+    const clean = txt.replace(/```json|```/g, '').trim();
+    const s = clean.indexOf('{');
+    const e = clean.lastIndexOf('}');
+    if (s < 0 || e < 0) return null;
+    return JSON.parse(clean.slice(s, e + 1));
+  } catch {
+    return null;
+  }
+}
+
+function safeParseArr(txt) {
+  try {
+    const clean = txt.replace(/```json|```/g, '').trim();
+    const s = clean.indexOf('[');
+    const e = clean.lastIndexOf(']');
+    if (s < 0 || e < 0) return null;
+    return JSON.parse(clean.slice(s, e + 1));
+  } catch {
+    return null;
+  }
+}
+
+function sleep(ms) {
+  return new Promise(r => setTimeout(r, ms));
+}
+
+</script>
+<script>
+// agents.js — all 7 agent functions
+
+const WEB_SEARCH_TOOL = [{ type: 'web_search_20250305', name: 'web_search' }];
+
+// ── Agent 1: Mention Scout (web + news) ──────────────────────────────────────
+async function agentScout(brand, competitors, region, isAllCanada) {
+  setIcon(0, 'running');
+  trace('Mention scout → searching news & web for "' + brand + '" in ' + region);
+
+  const compLine = competitors.length ? 'Also track: ' + competitors.join(', ') + '.' : '';
+  const geo = isAllCanada ? 'across Canada' : 'in ' + region + ', Canada';
+
+  const prompt = `You are a Canadian brand intelligence scout. Find recent mentions for "${brand}" ${geo}. ${compLine}
+
+Search news, blogs, press releases, and Canadian media (CBC, Globe and Mail, Toronto Star, regional outlets).
+
+Return ONLY a JSON array (no prose or fences) of 8-12 mentions:
+[{"brand":"<name>","channel":"web","platform":"news","region":"<province or National>","source":"<outlet>","title":"<headline>","snippet":"<2-3 sentences>","date":"<month year>","sentiment":"positive|neutral|negative"}]`;
+
+  const data = await callClaude([{ role: 'user', content: prompt }], WEB_SEARCH_TOOL, MAX_TOKENS_SCOUT);
+  const arr = safeParseArr(extractText(data)) || [];
+  trace('Scout filed ' + arr.length + ' web/news mentions');
+  setIcon(0, 'done');
+  return arr;
+}
+
+// ── Agent 2: Reddit ───────────────────────────────────────────────────────────
+async function agentReddit(brand, competitors, region, isAllCanada) {
+  setIcon(1, 'running');
+  trace('Reddit agent → scrubbing subreddits for "' + brand + '"');
+  await sleep(AGENT_PAUSE_MS);
+
+  const compLine = competitors.length ? 'Also look for: ' + competitors.join(', ') + '.' : '';
+  const geo = isAllCanada ? 'Canada-wide' : region + ', Canada';
+
+  const prompt = `You are a Reddit intelligence agent specializing in the Canadian market. Find or simulate realistic Reddit mentions for "${brand}" in ${geo}. ${compLine}
+
+Consider relevant subreddits: r/canada, r/ontario, r/vancouver, r/Calgary, r/Montreal, r/Edmonton, r/Halifax, r/photography, r/instantphotography, r/analog, r/filmphoto, r/gifts, r/frugal — whichever are most relevant.
+
+Return ONLY a JSON array (no prose or fences) of 6-10 mentions:
+[{"brand":"<name>","channel":"social","platform":"reddit","region":"<province or National>","subreddit":"<subreddit>","title":"<thread title>","snippet":"<realistic post or comment, 2-3 sentences>","upvotes":<number>,"comments":<number>,"date":"<month year>","sentiment":"positive|neutral|negative"}]`;
+
+  const data = await callClaude([{ role: 'user', content: prompt }], WEB_SEARCH_TOOL, MAX_TOKENS_DEFAULT);
+  const arr = safeParseArr(extractText(data)) || [];
+  trace('Reddit agent filed ' + arr.length + ' thread mentions');
+  setIcon(1, 'done');
+  return arr;
+}
+
+// ── Agent 3: X / Twitter ──────────────────────────────────────────────────────
+async function agentTwitter(brand, competitors, region, isAllCanada) {
+  setIcon(2, 'running');
+  trace('X/Twitter agent → scanning tweets and hashtags');
+  await sleep(AGENT_PAUSE_MS);
+
+  const compLine = competitors.length ? 'Also track: ' + competitors.join(', ') + '.' : '';
+  const geo = isAllCanada ? 'Canada' : region + ', Canada';
+
+  const prompt = `You are an X/Twitter social listening agent for the Canadian market. Find or simulate realistic X/Twitter mentions for "${brand}" in ${geo}. ${compLine}
+
+Focus on Canadian accounts, Canadian hashtags (#Canada, provincial tags), and local conversations. Include a mix of consumer posts, influencer content, and brand account activity.
+
+Return ONLY a JSON array (no prose or fences) of 6-10 mentions:
+[{"brand":"<name>","channel":"social","platform":"twitter","region":"<province or National>","handle":"@<username>","tweet":"<realistic tweet, max 280 chars>","likes":<number>,"retweets":<number>,"date":"<month year>","sentiment":"positive|neutral|negative","hashtags":["<tag>"]}]`;
+
+  const data = await callClaude([{ role: 'user', content: prompt }], WEB_SEARCH_TOOL, MAX_TOKENS_DEFAULT);
+  const arr = safeParseArr(extractText(data)) || [];
+  trace('X/Twitter agent filed ' + arr.length + ' tweet mentions');
+  setIcon(2, 'done');
+  return arr;
+}
+
+// ── Agent 4: Facebook ─────────────────────────────────────────────────────────
+async function agentFacebook(brand, competitors, region, isAllCanada) {
+  setIcon(3, 'running');
+  trace('Facebook agent → scanning groups and pages');
+  await sleep(AGENT_PAUSE_MS);
+
+  const compLine = competitors.length ? 'Also track: ' + competitors.join(', ') + '.' : '';
+  const geo = isAllCanada ? 'Canada' : region + ', Canada';
+
+  const prompt = `You are a Facebook social listening agent for the Canadian market. Find or simulate realistic Facebook mentions for "${brand}" in ${geo}. ${compLine}
+
+Include posts from brand pages, Canadian photography/hobby groups, local buy-and-sell groups, parenting groups, gift recommendation groups — whichever are most relevant.
+
+Return ONLY a JSON array (no prose or fences) of 5-8 mentions:
+[{"brand":"<name>","channel":"social","platform":"facebook","region":"<province or National>","group_or_page":"<group name>","post_snippet":"<realistic post, 2-3 sentences>","reactions":<number>,"comments":<number>,"date":"<month year>","sentiment":"positive|neutral|negative"}]`;
+
+  const data = await callClaude([{ role: 'user', content: prompt }], WEB_SEARCH_TOOL, MAX_TOKENS_DEFAULT);
+  const arr = safeParseArr(extractText(data)) || [];
+  trace('Facebook agent filed ' + arr.length + ' group/page mentions');
+  setIcon(3, 'done');
+  return arr;
+}
+
+// ── Agent 5: Google Reviews ───────────────────────────────────────────────────
+async function agentGoogle(brand, competitors, region, isAllCanada) {
+  setIcon(4, 'running');
+  trace('Google Reviews agent → scrubbing store and product reviews');
+  await sleep(AGENT_PAUSE_MS);
+
+  const compLine = competitors.length ? 'Also look for: ' + competitors.join(', ') + '.' : '';
+  const geo = isAllCanada ? 'Canada' : region + ', Canada';
+
+  const prompt = `You are a Google Reviews intelligence agent for the Canadian market. Find or simulate realistic Google Reviews and product reviews for "${brand}" in ${geo}. ${compLine}
+
+Include reviews from physical retail locations (Best Buy, London Drugs, Walmart Canada, Staples, The Source), Google Shopping, and app stores if applicable.
+
+Return ONLY a JSON array (no prose or fences) of 5-8 mentions:
+[{"brand":"<name>","channel":"web","platform":"google","region":"<province or National>","store":"<retailer or listing>","rating":<1-5>,"review_snippet":"<realistic review, 2-3 sentences>","helpful_votes":<number>,"date":"<month year>","sentiment":"positive|neutral|negative"}]`;
+
+  const data = await callClaude([{ role: 'user', content: prompt }], WEB_SEARCH_TOOL, MAX_TOKENS_DEFAULT);
+  const arr = safeParseArr(extractText(data)) || [];
+  trace('Google Reviews agent filed ' + arr.length + ' review mentions');
+  setIcon(4, 'done');
+  return arr;
+}
+
+// ── Agent 6: Sentiment Analyst ────────────────────────────────────────────────
+async function agentSentiment(brand, competitors, allMentions) {
+  setIcon(5, 'running');
+  trace('Sentiment analyst → scoring ' + allMentions.length + ' mentions across all platforms');
+  await sleep(ANALYST_PAUSE_MS);
+
+  const allBrands = [brand, ...competitors];
+  const bList = allBrands.map(b => '"' + b + '"').join(', ');
+  const platList = [...new Set(allMentions.map(m => m.platform || 'web'))];
+
+  const trimmed = allMentions.slice(0, 30).map((m, i) => {
+    const text = (m.snippet || m.tweet || m.post_snippet || m.review_snippet || m.title || '').slice(0, 80);
+    return i + '|' + (m.brand || brand) + '|' + (m.platform || 'web') + '|' + (m.region || 'CA') + '|' + text;
+  }).join('\n');
+
+  const prompt = `Sentiment analysis for brand "${brand}" in Canadian market. Competitors: ${competitors.join(', ') || 'none'}.
+
+Mentions (index|brand|platform|region|snippet):
+${trimmed}
+
+Return ONLY valid JSON (no prose, no fences):
+{
+  "scored": [{"index":0,"brand":"x","sentiment":"positive","score":0.5,"rationale":"brief"}],
+  "share_of_voice": [{"brand":"x","mention_count":1,"percent":50}],
+  "sentiment_breakdown": {"BrandName":{"positive":1,"neutral":0,"negative":0,"net_sentiment":0.5}},
+  "platform_breakdown": {"reddit":{"positive":2,"neutral":1,"negative":1,"net_sentiment":0.3}},
+  "region_breakdown": {"Ontario":{"positive":2,"neutral":1,"negative":0}},
+  "themes": [{"theme":"x","sentiment":"positive","frequency":3,"platforms":["reddit","twitter"]}]
+}
+
+Rules:
+- share_of_voice must include [${bList}]. Percents sum to 100.
+- platform_breakdown must include every platform in [${platList.join(', ')}].
+- Max 5 themes.
+- No extra text.`;
+
+  const data = await callClaude([{ role: 'user', content: prompt }], null, MAX_TOKENS_ANALYST);
+  const result = safeParse(extractText(data));
+  if (!result || !result.scored) throw new Error('Sentiment analyst returned malformed output. Please try again.');
+
+  const sov = (result.share_of_voice || []).find(s => s.brand.toLowerCase() === brand.toLowerCase());
+  if (sov) trace('Share of voice for ' + brand + ': ' + Math.round(sov.percent) + '%');
+  trace('Sentiment analyst → scoring complete');
+  setIcon(5, 'done');
+  return result;
+}
+
+// ── Agent 7: Bureau Chief ─────────────────────────────────────────────────────
+async function agentBureau(brand, competitors, allMentions, analysis, region, isAllCanada) {
+  setIcon(6, 'running');
+  trace('Bureau chief → drafting Canada intelligence briefing');
+
+  const geoLine = isAllCanada ? 'nationally across Canada' : 'in ' + region;
+  const compLine = competitors.length ? 'Benchmarked against: ' + competitors.join(', ') + '.' : '';
+  const platforms = [...new Set(allMentions.map(m => m.platform))];
+
+  const prompt = `You are a Canadian market intelligence bureau chief. Prepare an executive brand briefing for "${brand}" ${geoLine}. ${compLine}
+
+DATA:
+${JSON.stringify({ totalMentions: allMentions.length, platforms, analysis }, null, 2)}
+
+Return ONLY valid JSON (no prose, no fences):
+{
+  "headline": "<one sharp sentence on brand health>",
+  "executive_summary": "<2-3 sentences for executives>",
+  "key_findings": ["<finding 1>","<finding 2>","<finding 3>","<finding 4>"],
+  "regional_insight": "<2-3 sentences on regional dynamics — reference provinces by name>",
+  "platform_insight": "<2-3 sentences on which platforms are driving sentiment and why>",
+  "share_of_voice_analysis": "<2-3 sentences citing numbers>",
+  "risks": ["<risk 1>","<risk 2>"],
+  "opportunities": ["<opp 1>","<opp 2>"],
+  "recommendations": ["<rec 1>","<rec 2>","<rec 3>"]
+}
+
+Canadian market lens. Reference actual data. No filler.`;
+
+  const data = await callClaude([{ role: 'user', content: prompt }], null, MAX_TOKENS_DEFAULT);
+  const report = safeParse(extractText(data));
+  if (!report) throw new Error('Bureau chief returned malformed report. Please try again.');
+
+  trace('Bureau chief → briefing complete');
+  setIcon(6, 'done');
+  return report;
+}
+
+</script>
+<script>
+// render.js — builds results UI from agent data
+
+let sentChartInstance = null;
+
+function renderResults(brand, allMentions, analysis, report, region) {
+  document.getElementById('emptyState').classList.add('hidden');
+  document.getElementById('results').classList.remove('hidden');
+
+  // header
+  const dateStr = new Date().toLocaleDateString('en-CA', { month: 'long', year: 'numeric' });
+  document.getElementById('resultRegion').textContent   = region + ' · ' + dateStr;
+  document.getElementById('resultHeadline').textContent = report.headline || '';
+  document.getElementById('execSummary').textContent    = report.executive_summary || '';
+
+  const insightText = [report.regional_insight, report.platform_insight].filter(Boolean).join(' ');
+  document.getElementById('regionalInsight').textContent = insightText;
+
+  // metrics
+  const bd    = (analysis.sentiment_breakdown || {})[brand] || { positive: 0, neutral: 0, negative: 0, net_sentiment: 0 };
+  const total = (bd.positive || 0) + (bd.neutral || 0) + (bd.negative || 0) || 1;
+  const sov   = (analysis.share_of_voice || []).find(s => s.brand.toLowerCase() === brand.toLowerCase());
+  const net   = (bd.net_sentiment || 0) * 100;
+  const netColor = net > 20 ? 'var(--green)' : net < -20 ? 'var(--red)' : 'var(--text2)';
+  const uniquePlats = [...new Set(allMentions.map(m => m.platform))];
+
+  document.getElementById('metricsRow').innerHTML = `
+    <div class="metric">
+      <div class="metric-label">Total mentions</div>
+      <div class="metric-value">${allMentions.length}</div>
+      <div class="metric-sub">across ${uniquePlats.length} platform${uniquePlats.length !== 1 ? 's' : ''}</div>
+    </div>
+    <div class="metric">
+      <div class="metric-label">Share of voice</div>
+      <div class="metric-value">${sov ? Math.round(sov.percent) + '%' : '—'}</div>
+    </div>
+    <div class="metric">
+      <div class="metric-label">Net sentiment</div>
+      <div class="metric-value" style="color:${netColor}">${net > 0 ? '+' : ''}${Math.round(net)}</div>
+    </div>
+    <div class="metric">
+      <div class="metric-label">Positive rate</div>
+      <div class="metric-value">${Math.round((bd.positive || 0) / total * 100)}%</div>
+      <div class="metric-sub">${bd.positive || 0} of ${total} mentions</div>
+    </div>
+  `;
+
+  // share of voice
+  document.getElementById('sovSection').innerHTML = (analysis.share_of_voice || []).slice(0, 5).map(s => {
+    const isPrimary = s.brand.toLowerCase() === brand.toLowerCase();
+    const fill = isPrimary ? 'background:var(--blue)' : 'background:var(--bg3);border:0.5px solid var(--border2)';
+    return `
+      <div class="sov-row">
+        <div class="sov-top">
+          <span style="color:var(--text2)">${s.brand}</span>
+          <span style="font-weight:500">${Math.round(s.percent)}%</span>
+        </div>
+        <div class="sov-bar-wrap"><div class="sov-bar-fill" style="width:${Math.round(s.percent)}%;${fill}"></div></div>
+      </div>`;
+  }).join('');
+
+  // region breakdown
+  document.getElementById('regionSection').innerHTML = Object.entries(analysis.region_breakdown || {}).slice(0, 6).map(([reg, c]) => {
+    const t   = (c.positive || 0) + (c.neutral || 0) + (c.negative || 0) || 1;
+    const pct = Math.round((c.positive || 0) / t * 100);
+    return `
+      <div class="sent-row">
+        <span class="sent-name">${reg}</span>
+        <div class="sent-bar-wrap"><div class="sent-bar-fill" style="width:${pct}%"></div></div>
+        <span class="sent-pct">${pct}%</span>
+      </div>`;
+  }).join('');
+
+  // platform breakdown
+  document.getElementById('platformSection').innerHTML = Object.entries(analysis.platform_breakdown || {}).map(([plat, c]) => {
+    const t   = (c.positive || 0) + (c.neutral || 0) + (c.negative || 0) || 1;
+    const pct = Math.round((c.positive || 0) / t * 100);
+    const col = PLATFORM_COLOURS[plat] || 'var(--blue)';
+    return `
+      <div class="plat-row">
+        <span class="plat-name">${plat}</span>
+        <div class="plat-bar-wrap"><div class="plat-bar-fill" style="width:${pct}%;background:${col}"></div></div>
+        <span class="plat-pct">${pct}%</span>
+      </div>`;
+  }).join('');
+
+  // themes
+  document.getElementById('themesSection').innerHTML = (analysis.themes || []).slice(0, 6).map(t => {
+    const cls = t.sentiment === 'positive' ? 'pos' : t.sentiment === 'negative' ? 'neg' : 'neu';
+    return `<span class="tag ${cls}">${t.theme} ×${t.frequency}</span>`;
+  }).join('');
+
+  // stacked bar chart
+  if (sentChartInstance) { sentChartInstance.destroy(); sentChartInstance = null; }
+  const pb = analysis.platform_breakdown || {};
+  const platKeys = Object.keys(pb);
+  if (platKeys.length) {
+    const ctx = document.getElementById('sentChart').getContext('2d');
+    sentChartInstance = new Chart(ctx, {
+      type: 'bar',
+      data: {
+        labels: platKeys,
+        datasets: [
+          { label: 'Positive', data: platKeys.map(p => pb[p].positive  || 0), backgroundColor: '#1D9E75', borderWidth: 0 },
+          { label: 'Neutral',  data: platKeys.map(p => pb[p].neutral   || 0), backgroundColor: '#B4B2A9', borderWidth: 0 },
+          { label: 'Negative', data: platKeys.map(p => pb[p].negative  || 0), backgroundColor: '#E24B4A', borderWidth: 0 },
+        ],
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: { legend: { display: false } },
+        scales: {
+          x: { stacked: true, ticks: { color: '#9a9a94', font: { size: 11 } }, grid: { display: false } },
+          y: { stacked: true, ticks: { color: '#9a9a94', font: { size: 11 } }, grid: { color: 'rgba(0,0,0,0.06)' } },
+        },
+      },
+    });
+  }
+
+  // lists
+  const toList = (items, id) => {
+    document.getElementById(id).innerHTML = (items || []).map(f => `<li>${f}</li>`).join('');
+  };
+  toList(report.key_findings,    'findingsList');
+  toList(report.risks,           'riskList');
+  toList(report.opportunities,   'oppList');
+  document.getElementById('recList').innerHTML = (report.recommendations || []).map(r => `<li>${r}</li>`).join('');
+}
+
+</script>
+<script>
+// app.js — UI state, controls, region/platform selectors, main runner
+
+let selectedRegions = [];
+let allSelected     = true;
+let selectedPlats   = ['reddit', 'twitter', 'facebook', 'google'];
+
+// ── Build region grid ─────────────────────────────────────────────────────────
+(function buildRegionGrid() {
+  const grid = document.getElementById('regionGrid');
+  REGIONS.forEach(r => {
+    const b = document.createElement('button');
+    b.className  = 'rbtn';
+    b.id         = 'r_' + r.abbr;
+    b.innerHTML  = '<span class="abbr">' + r.abbr + '</span>' + r.name;
+    b.onclick    = () => toggleRegion(r.abbr, b);
+    grid.appendChild(b);
+  });
+})();
+
+// ── Region controls ───────────────────────────────────────────────────────────
+function toggleAll() {
+  allSelected     = true;
+  selectedRegions = [];
+  document.querySelectorAll('.rbtn').forEach(b => b.classList.remove('sel'));
+  document.getElementById('allBtn').classList.add('sel');
+}
+
+function toggleRegion(abbr, btn) {
+  allSelected = false;
+  document.getElementById('allBtn').classList.remove('sel');
+
+  if (selectedRegions.includes(abbr)) {
+    selectedRegions = selectedRegions.filter(r => r !== abbr);
+    btn.classList.remove('sel');
+  } else {
+    selectedRegions.push(abbr);
+    btn.classList.add('sel');
+  }
+
+  if (selectedRegions.length === 0) toggleAll();
+}
+
+function regionStr() {
+  if (allSelected) return 'All Canada';
+  return selectedRegions.map(a => {
+    const r = REGIONS.find(x => x.abbr === a);
+    return r ? r.name : a;
+  }).join(', ');
+}
+
+// ── Platform controls ─────────────────────────────────────────────────────────
+function togglePlat(btn) {
+  const p = btn.dataset.p;
+  if (selectedPlats.includes(p)) {
+    if (selectedPlats.length === 1) return; // keep at least one
+    selectedPlats = selectedPlats.filter(x => x !== p);
+    btn.classList.remove('sel');
+  } else {
+    selectedPlats.push(p);
+    btn.classList.add('sel');
+  }
+}
+
+// ── Trace helpers ─────────────────────────────────────────────────────────────
+function trace(msg, isErr) {
+  const box = document.getElementById('traceBox');
+  box.classList.remove('hidden');
+  const line = document.createElement('div');
+  line.className = 'tline';
+  const dot = document.createElement('span');
+  dot.className = 'tdot' + (isErr ? ' err' : '');
+  const txt = document.createElement('span');
+  txt.textContent = msg;
+  line.appendChild(dot);
+  line.appendChild(txt);
+  box.appendChild(line);
+  box.scrollTop = box.scrollHeight;
+}
+
+function setIcon(idx, state) {
+  const el = document.getElementById('icon' + idx);
+  if (el) el.className = 'agent-icon' + (state ? ' ' + state : '');
+}
+
+// ── Reset UI ──────────────────────────────────────────────────────────────────
+function resetUI(brand, region) {
+  document.getElementById('runBtn').disabled = true;
+  document.getElementById('pageSubtitle').textContent = 'Running analysis for "' + brand + '" · ' + region;
+  document.getElementById('traceBox').innerHTML = '';
+  document.getElementById('traceBox').classList.remove('hidden');
+  document.getElementById('errMsg').classList.add('hidden');
+  document.getElementById('results').classList.add('hidden');
+  document.getElementById('emptyState').classList.add('hidden');
+  [0, 1, 2, 3, 4, 5, 6].forEach(i => setIcon(i, ''));
+}
+
+// ── Main runner ───────────────────────────────────────────────────────────────
+async function runAgents() {
+  const brand = document.getElementById('brandInput').value.trim();
+  if (!brand) { alert('Please enter a brand name.'); return; }
+
+  const key = document.getElementById('apiKey').value.trim();
+  if (!key)  { alert('Please enter your Anthropic API key.'); return; }
+
+  const competitors = document.getElementById('compInput').value.trim()
+    .split(',').map(s => s.trim()).filter(Boolean);
+
+  const region = regionStr();
+  resetUI(brand, region);
+
+  try {
+    const allMentions = [];
+
+    // Agent 1 — always runs
+    const scoutMentions = await agentScout(brand, competitors, region, allSelected);
+    allMentions.push(...scoutMentions);
+
+    // Agents 2–5 — conditional on platform selection
+    if (selectedPlats.includes('reddit')) {
+      allMentions.push(...await agentReddit(brand, competitors, region, allSelected));
+    } else { setIcon(1, ''); }
+
+    if (selectedPlats.includes('twitter')) {
+      allMentions.push(...await agentTwitter(brand, competitors, region, allSelected));
+    } else { setIcon(2, ''); }
+
+    if (selectedPlats.includes('facebook')) {
+      allMentions.push(...await agentFacebook(brand, competitors, region, allSelected));
+    } else { setIcon(3, ''); }
+
+    if (selectedPlats.includes('google')) {
+      allMentions.push(...await agentGoogle(brand, competitors, region, allSelected));
+    } else { setIcon(4, ''); }
+
+    trace('All platform agents complete — ' + allMentions.length + ' total mentions collected');
+
+    // Agent 6 — sentiment scoring
+    const analysis = await agentSentiment(brand, competitors, allMentions);
+
+    // Agent 7 — bureau chief briefing
+    const report = await agentBureau(brand, competitors, allMentions, analysis, region, allSelected);
+
+    renderResults(brand, allMentions, analysis, report, region);
+
+  } catch (err) {
+    const errEl = document.getElementById('errMsg');
+    errEl.textContent = err.message || 'Something went wrong. Please try again.';
+    errEl.classList.remove('hidden');
+    trace('Error: ' + (err.message || 'unknown error'), true);
+    document.getElementById('emptyState').classList.remove('hidden');
+  } finally {
+    document.getElementById('runBtn').disabled = false;
+  }
+}
+
+</script>
 </body>
 </html>
