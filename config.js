@@ -24,7 +24,7 @@ const PLATFORM_COLOURS = {
   news:     '#185FA5',
 };
 
-const MODEL = 'claude-sonnet-4-20250514';
+const MODEL = 'claude-sonnet-4-5';
 const MAX_TOKENS_DEFAULT = 1200;
 const MAX_TOKENS_SCOUT   = 1500;
 const MAX_TOKENS_ANALYST = 1400;
