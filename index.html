@@ -1011,7 +1011,7 @@ function renderResults(brand, allMentions, analysis, report, region) {
 
 let selectedRegions = [];
 let allSelected     = true;
-let selectedPlats   = ['reddit', 'twitter', 'facebook', 'google'];
+let selectedPlats   = ['reddit', 'facebook', 'google'];
 
 // ── Build region grid ─────────────────────────────────────────────────────────
 (function buildRegionGrid() {
@@ -1061,7 +1061,7 @@ function regionStr() {
 function togglePlat(btn) {
   const p = btn.dataset.p;
   if (selectedPlats.includes(p)) {
-    if (selectedPlats.length === 1) return; // keep at least one
+    if (selectedPlats.length === 1) return;
     selectedPlats = selectedPlats.filter(x => x !== p);
     btn.classList.remove('sel');
   } else {
@@ -1100,7 +1100,7 @@ function resetUI(brand, region) {
   document.getElementById('errMsg').classList.add('hidden');
   document.getElementById('results').classList.add('hidden');
   document.getElementById('emptyState').classList.add('hidden');
-  [0, 1, 2, 3, 4, 5, 6].forEach(i => setIcon(i, ''));
+  [0, 1, 2, 3, 4, 5].forEach(i => setIcon(i, ''));
 }
 
 // ── Main runner ───────────────────────────────────────────────────────────────
@@ -1121,32 +1121,27 @@ async function runAgents() {
     const allMentions = [];
 
     // Agent 1 — always runs
-    const scoutMentions = await agentScout(brand, competitors, region, allSelected);
-    allMentions.push(...scoutMentions);
+    allMentions.push(...await agentScout(brand, competitors, region, allSelected));
 
-    // Agents 2–5 — conditional on platform selection
+    // Agents 2–4 — conditional on platform selection
     if (selectedPlats.includes('reddit')) {
       allMentions.push(...await agentReddit(brand, competitors, region, allSelected));
     } else { setIcon(1, ''); }
 
-    if (selectedPlats.includes('twitter')) {
-      allMentions.push(...await agentTwitter(brand, competitors, region, allSelected));
-    } else { setIcon(2, ''); }
-
     if (selectedPlats.includes('facebook')) {
       allMentions.push(...await agentFacebook(brand, competitors, region, allSelected));
-    } else { setIcon(3, ''); }
+    } else { setIcon(2, ''); }
 
     if (selectedPlats.includes('google')) {
       allMentions.push(...await agentGoogle(brand, competitors, region, allSelected));
-    } else { setIcon(4, ''); }
+    } else { setIcon(3, ''); }
 
     trace('All platform agents complete — ' + allMentions.length + ' total mentions collected');
 
-    // Agent 6 — sentiment scoring
+    // Agent 5 — sentiment scoring + JS aggregates
     const analysis = await agentSentiment(brand, competitors, allMentions);
 
-    // Agent 7 — bureau chief briefing
+    // Agent 6 — bureau chief briefing
     const report = await agentBureau(brand, competitors, allMentions, analysis, region, allSelected);
 
     renderResults(brand, allMentions, analysis, report, region);
