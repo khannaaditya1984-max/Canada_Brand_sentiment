@@ -537,7 +537,7 @@ const PLATFORM_COLOURS = {
 const MODEL = 'claude-sonnet-4-5';
 const MAX_TOKENS_DEFAULT = 1000;
 const MAX_TOKENS_SCOUT   = 1200;
-const MAX_TOKENS_ANALYST = 1000;
+const MAX_TOKENS_ANALYST = 2000;
 const AGENT_PAUSE_MS     = 8000;
 const ANALYST_PAUSE_MS   = 10000;
 
@@ -669,7 +669,7 @@ async function agentReddit(brand, competitors, region, isAllCanada) {
   const geo  = isAllCanada ? 'Canada' : region + ', Canada';
   const comp = competitors.length ? ' Also: ' + competitors.join(', ') + '.' : '';
 
-  const prompt = 'Simulate 4-5 realistic Reddit mentions for "' + brand + '" from Canadian subreddits in ' + geo + '.' + comp + '\n\nReturn ONLY a JSON array, each item: {brand, channel:"social", platform:"reddit", region, subreddit, title, snippet, upvotes, date, sentiment:"positive|neutral|negative"}. No prose.';
+  const prompt = 'Simulate 5-6 realistic Reddit mentions for "' + brand + '" from Canadian subreddits in ' + geo + '.' + comp + '\n\nReturn ONLY a JSON array, each item: {brand, channel:"social", platform:"reddit", region, subreddit, title, snippet, upvotes, date, sentiment:"positive|neutral|negative"}. No prose.';
 
   const data = await callClaude([{ role: 'user', content: prompt }], null, MAX_TOKENS_DEFAULT);
   const arr  = safeParseArr(extractText(data)) || [];
@@ -687,7 +687,7 @@ async function agentTwitter(brand, competitors, region, isAllCanada) {
   const geo  = isAllCanada ? 'Canada' : region + ', Canada';
   const comp = competitors.length ? ' Also: ' + competitors.join(', ') + '.' : '';
 
-  const prompt = 'Simulate 4-5 realistic X/Twitter mentions for "' + brand + '" from Canadian users in ' + geo + '.' + comp + '\n\nReturn ONLY a JSON array, each item: {brand, channel:"social", platform:"twitter", region, handle, tweet, likes, date, sentiment:"positive|neutral|negative"}. No prose.';
+  const prompt = 'Simulate 5-6 realistic X/Twitter mentions for "' + brand + '" from Canadian users in ' + geo + '.' + comp + '\n\nReturn ONLY a JSON array, each item: {brand, channel:"social", platform:"twitter", region, handle, tweet, likes, date, sentiment:"positive|neutral|negative"}. No prose.';
 
   const data = await callClaude([{ role: 'user', content: prompt }], null, MAX_TOKENS_DEFAULT);
   const arr  = safeParseArr(extractText(data)) || [];
@@ -705,7 +705,7 @@ async function agentFacebook(brand, competitors, region, isAllCanada) {
   const geo  = isAllCanada ? 'Canada' : region + ', Canada';
   const comp = competitors.length ? ' Also: ' + competitors.join(', ') + '.' : '';
 
-  const prompt = 'Simulate 4-5 realistic Facebook mentions for "' + brand + '" from Canadian groups/pages in ' + geo + '.' + comp + '\n\nReturn ONLY a JSON array, each item: {brand, channel:"social", platform:"facebook", region, group_or_page, post_snippet, reactions, date, sentiment:"positive|neutral|negative"}. No prose.';
+  const prompt = 'Simulate 5-6 realistic Facebook mentions for "' + brand + '" from Canadian groups/pages in ' + geo + '.' + comp + '\n\nReturn ONLY a JSON array, each item: {brand, channel:"social", platform:"facebook", region, group_or_page, post_snippet, reactions, date, sentiment:"positive|neutral|negative"}. No prose.';
 
   const data = await callClaude([{ role: 'user', content: prompt }], null, MAX_TOKENS_DEFAULT);
   const arr  = safeParseArr(extractText(data)) || [];
@@ -723,7 +723,7 @@ async function agentGoogle(brand, competitors, region, isAllCanada) {
   const geo  = isAllCanada ? 'Canada' : region + ', Canada';
   const comp = competitors.length ? ' Also: ' + competitors.join(', ') + '.' : '';
 
-  const prompt = 'Simulate 4-5 realistic Google Reviews for "' + brand + '" from Canadian retailers (Best Buy, Walmart Canada, London Drugs) in ' + geo + '.' + comp + '\n\nReturn ONLY a JSON array, each item: {brand, channel:"web", platform:"google", region, store, rating, review_snippet, date, sentiment:"positive|neutral|negative"}. No prose.';
+  const prompt = 'Simulate 5-6 realistic Google Reviews for "' + brand + '" from Canadian retailers (Best Buy, Walmart Canada, London Drugs) in ' + geo + '.' + comp + '\n\nReturn ONLY a JSON array, each item: {brand, channel:"web", platform:"google", region, store, rating, review_snippet, date, sentiment:"positive|neutral|negative"}. No prose.';
 
   const data = await callClaude([{ role: 'user', content: prompt }], null, MAX_TOKENS_DEFAULT);
   const arr  = safeParseArr(extractText(data)) || [];
@@ -732,32 +732,46 @@ async function agentGoogle(brand, competitors, region, isAllCanada) {
   return arr;
 }
 
-// ── Agent 6: Sentiment Analyst ────────────────────────────────────────────────
+// ── Agent 6: Sentiment Analyst (2-step) ───────────────────────────────────────
 async function agentSentiment(brand, competitors, allMentions) {
   setIcon(5, 'running');
-  trace('Sentiment analyst → scoring ' + allMentions.length + ' mentions');
+  trace('Sentiment analyst → scoring ' + allMentions.length + ' total mentions');
   await sleep(ANALYST_PAUSE_MS);
 
   const allBrands = [brand, ...competitors];
   const bList     = allBrands.map(b => '"' + b + '"').join(', ');
   const platList  = [...new Set(allMentions.map(m => m.platform || 'web'))];
 
-  // Ultra-compact mention list — brand|platform|region|sentiment_hint only
-  const lines = allMentions.slice(0, 20).map((m, i) =>
-    i + '|' + (m.brand || brand) + '|' + (m.platform || 'web') + '|' + (m.region || 'CA') + '|' + (m.sentiment || 'neutral')
+  // ── Step 6a: score every mention individually ────────────────────────────
+  const lines = allMentions.map((m, i) =>
+    i + '|' + (m.brand || brand) + '|' + (m.platform || 'web') + '|' + (m.region || 'CA') + '|' +
+    (m.snippet || m.tweet || m.post_snippet || m.review_snippet || m.title || '').slice(0, 60)
   ).join('\n');
 
-  const prompt = 'Score sentiment for brand "' + brand + '" in Canada. Brands: [' + bList + ']. Platforms: [' + platList.join(', ') + '].\n\nMentions (index|brand|platform|region|sentiment):\n' + lines + '\n\nReturn ONLY JSON: {scored:[{index,brand,sentiment,score}], share_of_voice:[{brand,mention_count,percent}], sentiment_breakdown:{BrandName:{positive,neutral,negative,net_sentiment}}, platform_breakdown:{platform:{positive,neutral,negative,net_sentiment}}, region_breakdown:{region:{positive,neutral,negative}}, themes:[{theme,sentiment,frequency}]}. Percents sum 100. Max 4 themes. No prose.';
+  const scorePrompt = 'Score each mention for brand "' + brand + '" in Canada.\n\nMentions (index|brand|platform|region|text):\n' + lines + '\n\nReturn ONLY a JSON array — one entry per mention: [{index, brand, platform, region, sentiment:"positive|neutral|negative", score}]. No prose, no wrapper object.';
 
-  const data   = await callClaude([{ role: 'user', content: prompt }], null, MAX_TOKENS_ANALYST);
-  const result = safeParse(extractText(data));
-  if (!result || !result.scored) throw new Error('Sentiment analyst returned malformed output. Please try again.');
+  const scoreData   = await callClaude([{ role: 'user', content: scorePrompt }], null, MAX_TOKENS_ANALYST);
+  const scored      = safeParseArr(extractText(scoreData)) || [];
+  trace('Sentiment analyst → scored ' + scored.length + ' mentions, computing aggregates');
 
-  const sov = (result.share_of_voice || []).find(s => s.brand.toLowerCase() === brand.toLowerCase());
+  await sleep(8000);
+
+  // ── Step 6b: compute aggregates from scored results ──────────────────────
+  const scoredCompact = scored.map(s => (s.brand || brand) + '|' + (s.platform || 'web') + '|' + (s.region || 'CA') + '|' + (s.sentiment || 'neutral')).join('\n');
+
+  const aggPrompt = 'Compute brand analytics for [' + bList + '] in Canada from these scored mentions (brand|platform|region|sentiment):\n' + scoredCompact + '\n\nReturn ONLY JSON: {share_of_voice:[{brand,mention_count,percent}], sentiment_breakdown:{BrandName:{positive,neutral,negative,net_sentiment}}, platform_breakdown:{platform:{positive,neutral,negative,net_sentiment}}, region_breakdown:{region:{positive,neutral,negative}}, themes:[{theme,sentiment,frequency}]}. share_of_voice includes all of [' + bList + '], percents sum 100. platform_breakdown includes [' + platList.join(',') + ']. Max 5 themes. No prose.';
+
+  const aggData  = await callClaude([{ role: 'user', content: aggPrompt }], null, MAX_TOKENS_ANALYST);
+  const agg      = safeParse(extractText(aggData));
+
+  if (!agg || !agg.share_of_voice) throw new Error('Sentiment analyst could not compute aggregates. Please try again.');
+
+  const sov = (agg.share_of_voice || []).find(s => s.brand.toLowerCase() === brand.toLowerCase());
   if (sov) trace('Share of voice for ' + brand + ': ' + Math.round(sov.percent) + '%');
-  trace('Sentiment analyst → scoring complete');
+  trace('Sentiment analyst → complete');
   setIcon(5, 'done');
-  return result;
+
+  return { scored, ...agg };
 }
 
 // ── Agent 7: Bureau Chief ─────────────────────────────────────────────────────
@@ -769,14 +783,13 @@ async function agentBureau(brand, competitors, allMentions, analysis, region, is
   const comp     = competitors.length ? ' vs ' + competitors.join(', ') : '';
   const platforms = [...new Set(allMentions.map(m => m.platform))];
 
-  // Compact data summary only — no raw JSON blobs
   const sov     = (analysis.share_of_voice || []).map(s => s.brand + ':' + Math.round(s.percent) + '%').join(', ');
   const bd      = analysis.sentiment_breakdown || {};
   const sent    = Object.entries(bd).map(([b, v]) => b + ' net=' + ((v.net_sentiment || 0).toFixed(2)) + ' (+' + (v.positive||0) + '/-' + (v.negative||0) + ')').join(' | ');
-  const themes  = (analysis.themes || []).slice(0, 4).map(t => t.theme + '(' + t.sentiment + ')').join(', ');
-  const regions = Object.entries(analysis.region_breakdown || {}).slice(0, 4).map(([r, v]) => r + ':+' + (v.positive||0) + '/-' + (v.negative||0)).join(', ');
+  const themes  = (analysis.themes || []).slice(0, 5).map(t => t.theme + '(' + t.sentiment + ')').join(', ');
+  const regions = Object.entries(analysis.region_breakdown || {}).slice(0, 5).map(([r, v]) => r + ':+' + (v.positive||0) + '/-' + (v.negative||0)).join(', ');
 
-  const prompt = 'Write a Canadian brand intelligence briefing for "' + brand + '" ' + geo + comp + '.\n\nDATA: mentions=' + allMentions.length + ' platforms=[' + platforms.join(',') + '] SoV=' + sov + ' sentiment=[' + sent + '] themes=[' + themes + '] regions=[' + regions + ']\n\nReturn ONLY JSON: {headline, executive_summary, key_findings:[4 items], regional_insight, platform_insight, risks:[2], opportunities:[2], recommendations:[3]}. Canadian market lens. No prose outside JSON.';
+  const prompt = 'Write a Canadian brand intelligence briefing for "' + brand + '" ' + geo + comp + '.\n\nDATA: mentions=' + allMentions.length + ' platforms=[' + platforms.join(',') + '] SoV=[' + sov + '] sentiment=[' + sent + '] themes=[' + themes + '] regions=[' + regions + ']\n\nReturn ONLY JSON: {headline, executive_summary, key_findings:[4 items], regional_insight, platform_insight, risks:[2], opportunities:[2], recommendations:[3]}. Canadian market lens. Cite numbers. No prose outside JSON.';
 
   const data   = await callClaude([{ role: 'user', content: prompt }], null, MAX_TOKENS_DEFAULT);
   const report = safeParse(extractText(data));
