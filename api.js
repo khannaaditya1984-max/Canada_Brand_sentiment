@@ -1,7 +1,7 @@
 // api.js — routes all calls through the Cloudflare Worker proxy
 // Replace YOUR-SUBDOMAIN below with your actual Cloudflare Worker subdomain
 
-const PROXY_URL = 'shy-dawn-e509sentiment-proxy.khanna-aditya1984.workers.dev';
+const PROXY_URL = 'https://shy-dawn-e509sentiment-proxy.khanna-aditya1984.workers.dev';
 
 function getApiKey() {
   return document.getElementById('apiKey').value.trim();
