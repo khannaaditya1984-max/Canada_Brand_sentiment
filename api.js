@@ -4,9 +4,11 @@ function getApiKey() {
   return document.getElementById('apiKey').value.trim();
 }
 
-async function callClaude(messages, tools, maxTokens) {
+async function callClaude(messages, tools, maxTokens, retries) {
   const key = getApiKey();
   if (!key) throw new Error('No API key provided.');
+
+  retries = retries === undefined ? 3 : retries;
 
   const body = {
     model:      MODEL,
@@ -27,6 +29,14 @@ async function callClaude(messages, tools, maxTokens) {
     });
   } catch(e) {
     throw new Error('Network error: ' + e.message);
+  }
+
+  // Rate limited — wait and retry
+  if (res.status === 429 && retries > 0) {
+    const retryAfter = parseInt(res.headers.get('retry-after') || '12', 10);
+    trace('Rate limit hit — waiting ' + retryAfter + 's before retry...');
+    await sleep(retryAfter * 1000);
+    return callClaude(messages, tools, maxTokens, retries - 1);
   }
 
   if (!res.ok) {
