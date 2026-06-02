@@ -1,7 +1,7 @@
 // api.js — routes through Cloudflare Worker
 // API key is passed in the request body as __apiKey to avoid CORS preflight on custom headers
 
-const PROXY_URL = 'https://shy-dawn-e509sentiment-proxy.khanna-aditya1984.workers.dev';
+const PROXY_URL = 'https://sentiment-proxy.khanna-aditya1984.workers.dev';
 
 function getApiKey() {
   return document.getElementById('apiKey').value.trim();
