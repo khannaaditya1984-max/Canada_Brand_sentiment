@@ -1,71 +1,49 @@
 // netlify/functions/proxy.js
-// Server-side proxy to Anthropic API — avoids CORS restrictions in the browser.
+// API key stored in Netlify env var ANTHROPIC_API_KEY — never exposed to browser
+// Timeout handled by keeping each individual call small and fast
 
-exports.handler = async function (event, context) {
-
-  // Handle CORS preflight
+exports.handler = async function(event) {
   if (event.httpMethod === 'OPTIONS') {
-    return {
-      statusCode: 204,
-      headers: corsHeaders(),
-      body: '',
-    };
+    return { statusCode: 204, headers: corsHeaders(), body: '' };
   }
-
   if (event.httpMethod !== 'POST') {
-    return {
-      statusCode: 405,
-      headers: corsHeaders(),
-      body: JSON.stringify({ error: { message: 'Method not allowed' } }),
-    };
+    return { statusCode: 405, headers: corsHeaders(), body: 'Method not allowed' };
   }
 
-  // Pull the API key the client passed through
-  const apiKey = (event.headers['x-api-key'] || '').trim();
+  const apiKey = process.env.ANTHROPIC_API_KEY;
   if (!apiKey) {
     return {
-      statusCode: 400,
+      statusCode: 500,
       headers: corsHeaders(),
-      body: JSON.stringify({ error: { message: 'Missing x-api-key header' } }),
+      body: JSON.stringify({ error: { message: 'ANTHROPIC_API_KEY not set in Netlify environment variables' } })
     };
   }
 
-  // Forward to Anthropic
-  let response;
+  let payload;
+  try { payload = JSON.parse(event.body); }
+  catch(e) { return { statusCode: 400, headers: corsHeaders(), body: JSON.stringify({ error: { message: 'Invalid JSON' } }) }; }
+
   try {
-    response = await fetch('https://api.anthropic.com/v1/messages', {
+    const response = await fetch('https://api.anthropic.com/v1/messages', {
       method: 'POST',
       headers: {
         'Content-Type':      'application/json',
         'x-api-key':         apiKey,
         'anthropic-version': '2023-06-01',
       },
-      body: event.body,
+      body: JSON.stringify(payload),
     });
-  } catch (err) {
-    return {
-      statusCode: 502,
-      headers: corsHeaders(),
-      body: JSON.stringify({ error: { message: 'Upstream fetch failed: ' + err.message } }),
-    };
+    const text = await response.text();
+    return { statusCode: response.status, headers: { ...corsHeaders(), 'Content-Type': 'application/json' }, body: text };
+  } catch(err) {
+    return { statusCode: 502, headers: corsHeaders(), body: JSON.stringify({ error: { message: err.message } }) };
   }
-
-  const responseText = await response.text();
-
-  return {
-    statusCode: response.status,
-    headers: {
-      ...corsHeaders(),
-      'Content-Type': 'application/json',
-    },
-    body: responseText,
-  };
 };
 
 function corsHeaders() {
   return {
     'Access-Control-Allow-Origin':  '*',
-    'Access-Control-Allow-Headers': 'Content-Type, x-api-key, anthropic-version',
+    'Access-Control-Allow-Headers': 'Content-Type',
     'Access-Control-Allow-Methods': 'POST, OPTIONS',
   };
 }
