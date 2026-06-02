@@ -1,5 +1,5 @@
-// api.js — routes all calls through the Cloudflare Worker proxy
-// Replace YOUR-SUBDOMAIN below with your actual Cloudflare Worker subdomain
+// api.js — routes through Cloudflare Worker
+// API key is passed in the request body as __apiKey to avoid CORS preflight on custom headers
 
 const PROXY_URL = 'https://shy-dawn-e509sentiment-proxy.khanna-aditya1984.workers.dev';
 
@@ -11,7 +11,9 @@ async function callClaude(messages, tools, maxTokens) {
   const key = getApiKey();
   if (!key) throw new Error('No API key provided. Enter your Anthropic API key in the sidebar.');
 
+  // __apiKey travels in the body — no custom request headers means no CORS preflight
   const body = {
+    __apiKey:   key,
     model:      MODEL,
     max_tokens: maxTokens || MAX_TOKENS_DEFAULT,
     messages,
@@ -21,15 +23,12 @@ async function callClaude(messages, tools, maxTokens) {
   let res;
   try {
     res = await fetch(PROXY_URL, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'x-api-key':    key,
-      },
-      body: JSON.stringify(body),
+      method:  'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body:    JSON.stringify(body),
     });
   } catch (networkErr) {
-    throw new Error('Network error — check your Cloudflare Worker is deployed: ' + networkErr.message);
+    throw new Error('Network error: ' + networkErr.message);
   }
 
   if (!res.ok) {
