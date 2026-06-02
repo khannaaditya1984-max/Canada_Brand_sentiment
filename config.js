@@ -28,5 +28,5 @@ const MODEL = 'claude-sonnet-4-5';
 const MAX_TOKENS_DEFAULT = 1000;
 const MAX_TOKENS_SCOUT   = 1200;
 const MAX_TOKENS_ANALYST = 2000;
-const AGENT_PAUSE_MS     = 8000;
-const ANALYST_PAUSE_MS   = 10000;
+const AGENT_PAUSE_MS     = 1000;
+const ANALYST_PAUSE_MS   = 2000;
