@@ -535,8 +535,8 @@ const MODEL = 'claude-sonnet-4-5';
 const MAX_TOKENS_DEFAULT = 1000;
 const MAX_TOKENS_SCOUT   = 1200;
 const MAX_TOKENS_ANALYST = 2000;
-const AGENT_PAUSE_MS     = 8000;
-const ANALYST_PAUSE_MS   = 10000;
+const AGENT_PAUSE_MS     = 1000;
+const ANALYST_PAUSE_MS   = 2000;
 </script>
 <script>// api.js — calls Netlify function proxy (API key stored server-side)
 
@@ -544,9 +544,11 @@ function getApiKey() {
   return document.getElementById('apiKey').value.trim();
 }
 
-async function callClaude(messages, tools, maxTokens) {
+async function callClaude(messages, tools, maxTokens, retries) {
   const key = getApiKey();
   if (!key) throw new Error('No API key provided.');
+
+  retries = retries === undefined ? 3 : retries;
 
   const body = {
     model:      MODEL,
@@ -567,6 +569,14 @@ async function callClaude(messages, tools, maxTokens) {
     });
   } catch(e) {
     throw new Error('Network error: ' + e.message);
+  }
+
+  // Rate limited — wait and retry
+  if (res.status === 429 && retries > 0) {
+    const retryAfter = parseInt(res.headers.get('retry-after') || '12', 10);
+    trace('Rate limit hit — waiting ' + retryAfter + 's before retry...');
+    await sleep(retryAfter * 1000);
+    return callClaude(messages, tools, maxTokens, retries - 1);
   }
 
   if (!res.ok) {
